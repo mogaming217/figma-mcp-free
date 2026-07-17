@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import os from "node:os";
 
@@ -38,10 +38,16 @@ export function readConfig(): AppConfig {
 export function writeConfig(partial: AppConfig): void {
   const p = getConfigPath();
   const dir = dirname(p);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
   const current = readConfig();
   const next = { ...current, ...partial } as AppConfig;
-  writeFileSync(p, JSON.stringify(next, null, 2));
+  // config.json holds the Figma PAT; restrict access to the owner (no-op on Windows).
+  writeFileSync(p, JSON.stringify(next, null, 2), { mode: 0o600 });
+  try {
+    chmodSync(p, 0o600); // mode above only applies on creation; tighten pre-existing files too
+  } catch {
+    // Windows or restricted filesystems may not support chmod.
+  }
 }
 
 export function getToken(): string | undefined {
